@@ -1,5 +1,7 @@
+use crate::date::format_datetime;
 use std::env;
 
+mod date;
 mod db;
 mod file;
 
@@ -10,55 +12,98 @@ fn run() -> Result<(), String> {
     }
 
     match args[1].as_str() {
-        "stats" => {}
-        "help" => {}
+        "stats" => {
+            let db = db::ToDoList::load()?;
+            let done = db.count_by_status(db::ToDoListRecordStatus::Done);
+            let in_progress = db.count_by_status(db::ToDoListRecordStatus::InProgress);
+            println!(
+                "Number of task DONE: {} ({}%)",
+                done,
+                100 * done / (done + in_progress)
+            );
+            println!(
+                "Number of task IN-PROGRESS: {} ({}%)",
+                in_progress,
+                100 * in_progress / (done + in_progress)
+            );
+        }
+        "help" => {
+            println!("To do list");
+            println!("- stats: Display the number and distribution percentage of tasks");
+            println!("- help: ");
+            println!("- list: List all to-do tasks");
+            println!("- add \"<content>\": Add new task");
+            println!("- edit <id> \"<content>\": Edit an existing task");
+            println!("- check <id>: Mark a task as completed");
+            println!("- delete <id>: Soft-delete a task");
+        }
         "list" => {
             let db = db::ToDoList::load()?;
-            println!("ID, Timestamp, Content, Status");
-            println!("-----------------------");
-            db.get_list()
-                .iter()
-                .all(|value| {
-                    let key = value.0;
-                    let record = value.1;
-                    println!("{}, {:?}, {}, {}", key, record.timestamp, record.content, record.status);
-                    true
-                });
+            println!(
+                "{:<10} {:<20} {:<12} {:<20}",
+                "ID", "Timestamp", "Status", "Content"
+            );
+            db.get_list().iter().all(|value| {
+                let (key, record) = (value.0, value.1);
+                let timestamp = format_datetime(record.timestamp).unwrap();
+                println!(
+                    "{:<10} {:<20} {:<12} {:<20}",
+                    key, timestamp, record.status, record.content
+                );
+                true
+            });
         }
         "add" => {
-            if args.len() <= 2 {
-                return Err(format!("Command `{}` require <content>. Use `help` for information.", args[1]));
-            }
+            let content = args.get(2).ok_or_else(|| {
+                format!(
+                    "Command `{}` requires <content>. Use `help` for information.",
+                    args[1]
+                )
+            })?;
+
             let mut db = db::ToDoList::load()?;
-            let key = db.add(args[2].clone())?;
+            let key = db.add(content.to_string())?;
             println!("Add item successfully. New key: {}", key);
         }
         "edit" => {
-            if args.len() <= 3 {
-                return Err(format!("Command `{}` require <id>, <content>. Use `help` for information.", args[1]));
-            }
+            let (key, content) = args.get(2).zip(args.get(3)).ok_or_else(|| {
+                format!(
+                    "Command `{}` require <id>, <content>. Use `help` for information.",
+                    args[1]
+                )
+            })?;
+
             let mut db = db::ToDoList::load()?;
-            db.edit(args[2].clone(), args[3].clone())?;
+            db.edit(key.to_string(), content.to_string())?;
             println!("Edit item {} successfully.", args[2]);
         }
         "check" => {
-            if args.len() <= 2 {
-                return Err(format!("Command `{}` require <id>. Use `help` for information.", args[1]));
-            }
+            let key = args.get(2).ok_or_else(|| {
+                format!(
+                    "Command `{}` require <id>. Use `help` for information.",
+                    args[1]
+                )
+            })?;
             let mut db = db::ToDoList::load()?;
-            db.check(args[2].clone())?;
+            db.check(key.to_string())?;
             println!("Check item {} successfully.", args[2]);
         }
         "delete" => {
-            if args.len() <= 2 {
-                return Err(format!("Command `{}` require <id>. Use `help` for information.", args[1]));
-            }
+            let key = args.get(2).ok_or_else(|| {
+                format!(
+                    "Command `{}` require <id>. Use `help` for information.",
+                    args[1]
+                )
+            })?;
             let mut db = db::ToDoList::load()?;
-            db.delete(args[2].clone())?;
+            db.delete(key.to_string())?;
             println!("Delete item {} successfully.", args[2]);
         }
         _ => {
-            return Err(format!("Unknown command: {}. Use `help` for information.", args[1]));
+            return Err(format!(
+                "Unknown command: {}. Use `help` for information.",
+                args[1]
+            ));
         }
     }
 

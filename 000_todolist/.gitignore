@@ -21,4 +21,5 @@ target/
 #.idea/
 
 ## Data folder
-data/*.csv
+data/*
+!data/.gitkeep
